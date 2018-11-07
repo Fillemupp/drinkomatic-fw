@@ -231,6 +231,7 @@ void handleMotors() {
   }   else {
     // Set step signal low for all activated motors
     interruptState = 0; // Change to other state for next interrupt
+    progbar_current = 0;
     for (int motor = 0; motor<MOTOR_COUNT; motor++) {
       if (motor_status[motor].steps > 0) {
         digitalWrite(motor_status[motor].pin_step , LOW);
