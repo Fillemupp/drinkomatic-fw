@@ -86,7 +86,7 @@ void setup() {
   leds.show();
   ledStandby();
   
-  Timer1.initialize(1000);         // initialize timer1, set 1 ms period
+  Timer1.initialize(stepSpeed);         // initialize timer1, set 1 ms period
   Timer1.attachInterrupt(handleMotors);  // attach hanldeMotors() as timer overflow interrupt
   
 }
@@ -148,6 +148,7 @@ void handleCommand(char* command) {
             motor_status[motor].steps = steps;
             motor_status[motor].speed = speed;
             stepSpeed = speed;
+            Timer1.setPeriod(stepSpeed);         // Set timer interrupt with motor speed
 
             // Updtae progress bar maximum
             if (steps > progbar_max) {
@@ -216,9 +217,11 @@ void handleCom() {
 }
 
 int progbar_previous_led = 0;
+long progbar_current = 0;
 int interruptState = 0;
 void handleMotors() {
-  if (interruptState == 0) {    
+  if (interruptState == 0) {
+    // Set step signal high for all activated motors
     interruptState = 1; // Change to other state for next interrupt
     for (int motor = 0; motor<MOTOR_COUNT; motor++) {
       if (motor_status[motor].steps > 0) {
@@ -226,8 +229,8 @@ void handleMotors() {
       }
     }    
   }   else {
+    // Set step signal low for all activated motors
     interruptState = 0; // Change to other state for next interrupt
-    long progbar_current = 0;
     for (int motor = 0; motor<MOTOR_COUNT; motor++) {
       if (motor_status[motor].steps > 0) {
         digitalWrite(motor_status[motor].pin_step , LOW);
@@ -260,46 +263,48 @@ void handleMotors() {
     
   }
 
-
-    /*
-    // If pumps are on, then update progress bar
-    int progbar_current_led = 24-(int)((long)(24 * (long)progbar_current) / (long)progbar_max);
-    if (progbar_current > 0) {
-      if (progbar_current_led != progbar_previous_led) {
-        progbar_previous_led = progbar_current_led;
-        for (int i = 0; i < RGB_LED_COUNT; i++) {
-          if (i <  progbar_current_led) {
-            leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
-          } else {
-            leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
-          }
-        }
-        leds.show();   // ...but the LEDs don't actually update until you call this.
-      }
-    } else {
-      ledStandby();
-      progbar_max = 0;
-    }
-    */
-
   // Linear increase of speed
-  //  if (stepSpeed > stepSpeedMin)
-  //    stepSpeed--;
+  if (stepSpeed > stepSpeedMin) {
+    stepSpeed--;
+    Timer1.setPeriod(stepSpeed);         // Set timer interrupt with motor speed
+  }
 
 }
 
 int ledpos = 0;
 void handleLeds() {
+  /*
+  // If pumps are on, then update progress bar
+  int progbar_current_led = 24-(int)((long)(24 * (long)progbar_current) / (long)progbar_max);
+  if (progbar_current > 0) {
+    if (progbar_current_led != progbar_previous_led) {
+      progbar_previous_led = progbar_current_led;
+      for (int i = 0; i < RGB_LED_COUNT; i++) {
+        if (i <  progbar_current_led) {
+          leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
+        } else {
+          leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
+        }
+      }
+      leds.show();   // ...but the LEDs don't actually update until you call this.
+    }
+  } else {
+    ledStandby();
+    progbar_max = 0;
+  }
+  */
+
   ledpos++;
   leds.setPixelColor(ledpos, 100);
   if (ledpos > RGB_LED_COUNT) {
     ledpos = 0;
   }
-
+  /*
   for (int i=0; i<RGB_LED_COUNT; i++)
   {
     leds.setPixelColor(i, 255,0,255);
   }
+  */
   leds.show();
 }
 
@@ -326,5 +331,5 @@ void loop () {
   heartBeat();
   handleCom();
 //  handleLeds();
-
 }
+
