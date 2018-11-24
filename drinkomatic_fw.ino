@@ -33,7 +33,7 @@ serial port
 
 #define INBUFLEN  200
 
-#define MOTOR_COUNT 5
+#define MOTOR_COUNT 10
 
 #include "TimerOne.h"
 
@@ -51,11 +51,17 @@ typedef struct {
 
 // RAMPS 1.4 motor config
 motor_status_t motor_status[MOTOR_COUNT] = {
-  {0, 0, 54, 55, 38}, // X
-  {0, 0, 60, 61, 56}, // Y
-  {0, 0, 46, 48, 62}, // Z
-  {0, 0, 26, 28, 24}, // E
-  {0, 0, 36, 34, 30}, // Q
+  {0, 0, 54, 55, 38}, // X0 M0
+  {0, 0, 60, 61, 56}, // Y0 M1
+  {0, 0, 46, 48, 62}, // Z0 M2
+  {0, 0, 26, 28, 24}, // 00 M3
+  {0, 0, 36, 34, 30}, // 10 M4
+
+  {0, 0, 59, 64, 63}, // X1 M5
+  {0, 0, 59, 64, 44}, // Y1 M6
+  {0, 0, 59, 64, 66}, // Z1 M7
+  {0, 0, 59, 64, 42}, // 01 M8
+  {0, 0, 59, 64, 40}, // 11 M9
 };
 
 void setup() {
