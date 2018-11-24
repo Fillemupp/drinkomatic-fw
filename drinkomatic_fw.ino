@@ -17,6 +17,7 @@ serial port
 
 #define RGB_LED_PIN        5
 #define RGB_LED_COUNT      60
+#define RGB_LEDS_CIRCLE4   24
 
 #define FAN_PIN            9
 
@@ -85,10 +86,10 @@ void setup() {
   clearLEDs();
   leds.show();
   ledStandby();
-  
+
   Timer1.initialize(stepSpeed);         // initialize timer1, set 1 ms period
   Timer1.attachInterrupt(handleMotors);  // attach hanldeMotors() as timer overflow interrupt
-  
+
 }
 
 char inBuffer[INBUFLEN];
@@ -227,7 +228,7 @@ void handleMotors() {
       if (motor_status[motor].steps > 0) {
         digitalWrite(motor_status[motor].pin_step , HIGH);
       }
-    }    
+    }
   }   else {
     // Set step signal low for all activated motors
     interruptState = 0; // Change to other state for next interrupt
@@ -236,12 +237,12 @@ void handleMotors() {
       if (motor_status[motor].steps > 0) {
         digitalWrite(motor_status[motor].pin_step , LOW);
         motor_status[motor].steps--;
-  
+
         // Update current progress bar position
         if (motor_status[motor].steps > progbar_current) {
           progbar_current = motor_status[motor].steps;
         }
-  
+
         // Disable motor driver when zero reached
         if (motor_status[motor].steps == 0) {
            digitalWrite(motor_status[motor].pin_enable , HIGH);
@@ -249,9 +250,9 @@ void handleMotors() {
            Serial.print("# Time in millis: ");
            Serial.println(motorStopTime-motorStartTime);
         }
-      }      
+      }
     }
-    
+
     // Flash laser when pumps are running
     if (progbar_current > 0) {
       if (millis() % 300 < 100)
@@ -261,7 +262,7 @@ void handleMotors() {
     } else {
       digitalWrite(LASER_PIN, HIGH);
     }
-    
+
   }
 
   // Linear increase of speed
@@ -270,55 +271,63 @@ void handleMotors() {
     Timer1.setPeriod(stepSpeed);         // Set timer interrupt with motor speed
   }
 
+//  handleCom();
+
 }
 
 int ledpos = 0;
 void handleLeds() {
-  /*
   // If pumps are on, then update progress bar
-  int progbar_current_led = 24-(int)((long)(24 * (long)progbar_current) / (long)progbar_max);
-  if (progbar_current > 0) {
+  int progbar_current_led = RGB_LEDS_CIRCLE4 -
+    (int)((long)(RGB_LEDS_CIRCLE4 * (long)progbar_current) / (long)progbar_max);
+//  if (progbar_current > 0) {
     if (progbar_current_led != progbar_previous_led) {
       progbar_previous_led = progbar_current_led;
-      for (int i = 0; i < RGB_LED_COUNT; i++) {
-        if (i <  progbar_current_led) {
-          leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
-        } else {
-          leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
+      // Is end reached?
+      if (progbar_current_led == RGB_LEDS_CIRCLE4 + 1) {
+        // Yes, show standby green
+        for (int i=0; i<RGB_LEDS_CIRCLE4; i++) {
+          leds.setPixelColor(i, 0,255,0);
+        }
+      } else {
+        // No, update blue progress bar
+        for (int i = 0; i < RGB_LED_COUNT; i++) {
+          if (i <  progbar_current_led) {
+            leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
+          } else {
+            leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
+          }
         }
       }
-      leds.show();   // ...but the LEDs don't actually update until you call this.
+      leds.show();
     }
-  } else {
-    ledStandby();
-    progbar_max = 0;
-  }
-  */
-
+//  } else {
+//    ledStandby();
+//    progbar_max = 0;
+//  }
+  /*
   ledpos++;
-  leds.setPixelColor(ledpos, 100);
+  leds.setPixelColor(ledpos, ledpos+millis());
   if (ledpos > RGB_LED_COUNT) {
     ledpos = 0;
   }
+  */
   /*
   for (int i=0; i<RGB_LED_COUNT; i++)
   {
     leds.setPixelColor(i, 255,0,255);
   }
   */
-  leds.show();
+//  leds.show();
 }
 
 void ledStandby() {
-  for (int i=0; i<51; i++)
-  {
-    leds.setPixelColor(i, 0,0,0);
-  }
-  for (int i=52; i<60; i++)
+  // Set outer circle green
+  for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
   {
     leds.setPixelColor(i, 0,255,0);
   }
-  leds.show();  
+  leds.show();
 }
 
 void heartBeat() {
@@ -331,6 +340,5 @@ void heartBeat() {
 void loop () {
   heartBeat();
   handleCom();
-//  handleLeds();
+  handleLeds();
 }
-
