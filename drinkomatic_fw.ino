@@ -155,6 +155,8 @@ void handleCommand(char* command) {
             motor_status[motor].steps = steps;
             motor_status[motor].speed = speed;
             stepSpeed = speed;
+            if (stepSpeed < stepSpeedMin)
+              stepSpeed = stepSpeedMin;
             Timer1.setPeriod(stepSpeed);         // Set timer interrupt with motor speed
 
             // Updtae progress bar maximum
