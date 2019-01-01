@@ -1,2 +1,1 @@
-Required libraries:
-Adafruit_NeoPixel
+Required libraries: Adafruit_NeoPixel, TimerOne
