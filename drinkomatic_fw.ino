@@ -35,14 +35,14 @@ serial port
 
 #define MOTOR_COUNT 24
 
-#include "TimerOne.h"
+#include <TimerOne.h>
 
 #include <Adafruit_NeoPixel.h>
 Adafruit_NeoPixel leds = Adafruit_NeoPixel(RGB_LED_COUNT, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
 
 long progbar_max = 0;
-int stepSpeed = 400;
-int stepSpeedMin = 400;
+int stepSpeed = 500;
+int stepSpeedMin = 500;
 
 typedef struct {
   long steps;
