@@ -18,6 +18,9 @@ serial port
 #define RGB_LED_PIN        5
 #define RGB_LED_COUNT      60
 #define RGB_LEDS_CIRCLE4   24
+#define RGB_LEDS_CIRCLE3   16
+#define RGB_LEDS_CIRCLE2   12
+#define RGB_LEDS_CIRCLE1   8
 
 #define FAN_PIN            9
 
@@ -39,8 +42,13 @@ serial port
 
 #include <Adafruit_NeoPixel.h>
 Adafruit_NeoPixel leds = Adafruit_NeoPixel(RGB_LED_COUNT, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
-
 long progbar_max = 0;
+long progbar_current = 0;
+int progbar_previous_led = 0;
+int LED_state = 0;
+#define LEDSTATE_STANDBY 0
+#define LEDSTATE_RUNNING 1
+
 int stepSpeed = 500;
 int stepSpeedMin = 500;
 
@@ -107,9 +115,7 @@ void setup() {
   pinMode(LED_PIN  , OUTPUT);
 
   leds.begin();
-  clearLEDs();
-  leds.show();
-  ledStandby();
+  changeLED_state(LEDSTATE_STANDBY);
 
   Timer1.initialize(stepSpeed);         // initialize timer1, set 1 ms period
   Timer1.attachInterrupt(handleMotors);  // attach hanldeMotors() as timer overflow interrupt
@@ -177,10 +183,14 @@ void handleCommand(char* command) {
               stepSpeed = stepSpeedMin;
             Timer1.setPeriod(stepSpeed);         // Set timer interrupt with motor speed
 
-            // Updtae progress bar maximum
+            // Update progress bar maximum
             if (steps > progbar_max) {
               progbar_max = steps;
             }
+            
+            // Activate LEDs if not already active
+            if (LED_state != LEDSTATE_RUNNING)
+              changeLED_state(LEDSTATE_RUNNING);
 
             // Set motor direction
             if (motor_status[motor].speed > 0) {
@@ -202,7 +212,7 @@ void handleCommand(char* command) {
       }
       // Find the next command in input string
       subcommand = strtok(0, "&");
-    }
+    }    
 
   }  // Check for stop command
   else if (command[0] == 'S') {
@@ -220,7 +230,6 @@ void handleCommand(char* command) {
     }
 
     Serial.println("OK");
-
   }
 
 }
@@ -243,8 +252,6 @@ void handleCom() {
   }
 }
 
-int progbar_previous_led = 0;
-long progbar_current = 0;
 int interruptState = 0;
 void handleMotors() {
   if (interruptState == 0) {
@@ -264,7 +271,7 @@ void handleMotors() {
         digitalWrite(motor_status[motor].pin_step , LOW);
         motor_status[motor].steps--;
 
-        // Update current progress bar position
+        // Update current progress bar position to the highest steps left
         if (motor_status[motor].steps > progbar_current) {
           progbar_current = motor_status[motor].steps;
         }
@@ -279,16 +286,10 @@ void handleMotors() {
       }
     }
 
-    // Flash laser when pumps are running
-    if (progbar_current > 0) {
-      if (millis() % 300 < 100)
-        digitalWrite(LASER_PIN, HIGH);
-      else
-        digitalWrite(LASER_PIN, LOW);
-    } else {
-      digitalWrite(LASER_PIN, HIGH);
-    }
-
+    // Reset progbar and prepare for next run if no motors are running now
+    if (progbar_current == 0) {
+      progbar_max = 0;
+    }    
   }
 
   // Linear increase of speed
@@ -297,66 +298,77 @@ void handleMotors() {
     Timer1.setPeriod(stepSpeed);         // Set timer interrupt with motor speed
   }
 
-//  handleCom();
-
+  handleLeds();
 }
 
-int ledpos = 0;
+void changeLED_state(int newState) {
+ 
+  switch (newState) {
+    case LEDSTATE_STANDBY:
+      // Turn on laser
+      digitalWrite(LASER_PIN, HIGH);       
+      // Set outer circle green
+      for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
+        leds.setPixelColor(i, 0,255,0);
+      for (int i=0; i<RGB_LEDS_CIRCLE3; i++)
+        leds.setPixelColor(i+RGB_LEDS_CIRCLE4, 255,0,0);    
+      for (int i=0; i<RGB_LEDS_CIRCLE2; i++)
+        leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, 0,0,255);    
+      for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
+        leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, 255,0,255);    
+      leds.show();   
+      break;   
+
+    case LEDSTATE_RUNNING:
+      // Set outer to zero
+      for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
+        leds.setPixelColor(i, 0,0,0);
+      leds.show();         
+      break;          
+   } 
+   LED_state = newState;
+}
+
 void handleLeds() {
-  // If pumps are on, then update progress bar
-  int progbar_current_led = RGB_LEDS_CIRCLE4 -
-    (int)((long)(RGB_LEDS_CIRCLE4 * (long)progbar_current) / (long)progbar_max);
-//  if (progbar_current > 0) {
-    if (progbar_current_led != progbar_previous_led) {
-      progbar_previous_led = progbar_current_led;
-      // Is end reached?
-      if (progbar_current_led == RGB_LEDS_CIRCLE4 + 1) {
-        // Yes, show standby green
-        for (int i=0; i<RGB_LEDS_CIRCLE4; i++) {
-          leds.setPixelColor(i, 0,255,0);
-        }
-      } else {
-        // No, update blue progress bar
-        for (int i = 0; i < RGB_LED_COUNT; i++) {
-          if (i <  progbar_current_led) {
-            leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
-          } else {
-            leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
+
+  // Flash laser when pumps are running
+  switch (LED_state) {
+
+    case LEDSTATE_STANDBY:
+      break;
+
+    case LEDSTATE_RUNNING:
+      if (millis() % 300 < 100)
+        digitalWrite(LASER_PIN, HIGH);
+      else
+        digitalWrite(LASER_PIN, LOW);
+          
+      // If pumps are on, then update progress bar
+      int progbar_current_led = RGB_LEDS_CIRCLE4 -
+        (int)((long)(RGB_LEDS_CIRCLE4 * (long)progbar_current) / (long)progbar_max);
+      if (progbar_current_led != progbar_previous_led) {
+        progbar_previous_led = progbar_current_led;
+        // Is end reached?
+        if (progbar_current_led == RGB_LEDS_CIRCLE4) {
+          // Yes, show standby
+          changeLED_state(LEDSTATE_STANDBY);
+        } else {
+          // No, update blue progress bar
+          for (int i = 0; i < RGB_LED_COUNT; i++) {
+            if (i <  progbar_current_led) {
+              leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
+            } else {
+              leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
+            }
           }
         }
+        leds.show();
       }
-      leds.show();
-    }
-//  } else {
-//    ledStandby();
-//    progbar_max = 0;
-//  }
-  /*
-  ledpos++;
-  leds.setPixelColor(ledpos, ledpos+millis());
-  if (ledpos > RGB_LED_COUNT) {
-    ledpos = 0;
-  }
-  */
-  /*
-  for (int i=0; i<RGB_LED_COUNT; i++)
-  {
-    leds.setPixelColor(i, 255,0,255);
-  }
-  */
-//  leds.show();
+      break;
+  }    
 }
 
-void ledStandby() {
-  // Set outer circle green
-  for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
-  {
-    leds.setPixelColor(i, 0,255,0);
-  }
-  leds.show();
-}
-
-void heartBeat() {
+void heartBeat() {  
   if (millis() % 800 < 100)
     digitalWrite(LED_PIN, HIGH);
   else
@@ -366,5 +378,5 @@ void heartBeat() {
 void loop () {
   heartBeat();
   handleCom();
-//  handleLeds();
 }
+
