@@ -11,6 +11,9 @@ serial port
 
 #define MOTORSPEED 100
 
+#define BOARD_CONFIG_PIN   4
+#define BOARD_CONFIG_MOTOR 0
+#define BOARD_CONFIG_LED   1
 #define SDPOWER            -1
 #define SDSS               53
 #define LED_PIN            13
@@ -45,12 +48,14 @@ Adafruit_NeoPixel leds = Adafruit_NeoPixel(RGB_LED_COUNT, RGB_LED_PIN, NEO_GRB +
 long progbar_max = 0;
 long progbar_current = 0;
 int progbar_previous_led = 0;
-int LED_state = 0;
-#define LEDSTATE_STANDBY 0
-#define LEDSTATE_RUNNING 1
+int state = 0;
+#define STANDBY 0
+#define RUNNING 1
 
 int stepSpeed = 500;
 int stepSpeedMin = 500;
+
+int board_config = 0;
 
 typedef struct {
   long steps;
@@ -95,6 +100,14 @@ void setup() {
   Serial.println("#");
   Serial.println("# Startup pumpfirmware v0.1");
 
+  // Check board config pin, if there is a cable to GND then this is an LED board 
+  pinMode(BOARD_CONFIG_PIN, INPUT_PULLUP);
+  if (digitalRead(BOARD_CONFIG_PIN) == HIGH) {
+    board_config = BOARD_CONFIG_MOTOR;
+  } else {
+    board_config = BOARD_CONFIG_LED;
+  }
+
   for (int i=0; i<MOTOR_COUNT;i++) {
     motor_status[i].steps = 0;
     motor_status[i].speed = 0;
@@ -108,14 +121,23 @@ void setup() {
     digitalWrite(motor_status[i].pin_enable , HIGH);
   }
 
-  // Set pin for LASER
-  pinMode(LASER_PIN, OUTPUT);
-  digitalWrite(LASER_PIN, LOW);
-
-  pinMode(LED_PIN  , OUTPUT);
-
-  leds.begin();
-  changeLED_state(LEDSTATE_STANDBY);
+  // Update Laser if this is the motor board
+  if (board_config == BOARD_CONFIG_MOTOR) {
+    // Set pin for LASER
+    pinMode(LASER_PIN, OUTPUT);
+    digitalWrite(LASER_PIN, LOW);
+  } else {
+    // Update LEDs if this is the LED board
+    pinMode(LED_PIN  , OUTPUT);
+    leds.begin();
+    // Clear LEDs
+    for (int i=0; i<RGB_LED_COUNT; i++) {
+      leds.setPixelColor(i, 0);
+    }
+    leds.show();
+  }
+  
+  changeState(STANDBY);
 
   Timer1.initialize(stepSpeed);         // initialize timer1, set 1 ms period
   Timer1.attachInterrupt(handleMotors);  // attach hanldeMotors() as timer overflow interrupt
@@ -124,14 +146,6 @@ void setup() {
 
 char inBuffer[INBUFLEN];
 int inBufferP = 0;
-
-void clearLEDs()
-{
-  for (int i=0; i<RGB_LED_COUNT; i++)
-  {
-    leds.setPixelColor(i, 0);
-  }
-}
 
 long motorStartTime;
 
@@ -188,9 +202,9 @@ void handleCommand(char* command) {
               progbar_max = steps;
             }
             
-            // Activate LEDs if not already active
-            if (LED_state != LEDSTATE_RUNNING)
-              changeLED_state(LEDSTATE_RUNNING);
+            // Set new state
+            if (state != RUNNING)
+              changeState(RUNNING);
 
             // Set motor direction
             if (motor_status[motor].speed > 0) {
@@ -286,10 +300,12 @@ void handleMotors() {
       }
     }
 
-    // Reset progbar and prepare for next run if no motors are running now
-    if (progbar_current == 0) {
+    // If this is the end, then change to STANDBY state
+    if ((progbar_current == 0) && (state == RUNNING)) {
       progbar_max = 0;
-    }    
+      changeState(STANDBY);
+    }
+
   }
 
   // Linear increase of speed
@@ -298,73 +314,102 @@ void handleMotors() {
     Timer1.setPeriod(stepSpeed);         // Set timer interrupt with motor speed
   }
 
-  handleLeds();
+  handleStates();
+
 }
 
-void changeLED_state(int newState) {
- 
-  switch (newState) {
-    case LEDSTATE_STANDBY:
-      // Turn on laser
-      digitalWrite(LASER_PIN, HIGH);       
-      // Set outer circle green
-      for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
-        leds.setPixelColor(i, 0,255,0);
-      for (int i=0; i<RGB_LEDS_CIRCLE3; i++)
-        leds.setPixelColor(i+RGB_LEDS_CIRCLE4, 255,0,0);    
-      for (int i=0; i<RGB_LEDS_CIRCLE2; i++)
-        leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, 0,0,255);    
-      for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
-        leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, 255,0,255);    
-      leds.show();   
-      break;   
+void changeState(int newState) {
 
-    case LEDSTATE_RUNNING:
-      // Set outer to zero
-      for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
-        leds.setPixelColor(i, 0,0,0);
-      leds.show();         
-      break;          
-   } 
-   LED_state = newState;
+  if (board_config == BOARD_CONFIG_MOTOR) {
+    // States for Motor board config  
+    switch (newState) {
+      case STANDBY:
+        // Turn on laser
+        digitalWrite(LASER_PIN, HIGH);       
+        break;   
+  
+      case RUNNING:
+        break;          
+     } 
+
+  } else {
+    // States for LED board config
+
+    switch (newState) {
+      case STANDBY:
+        // Set outer circle green
+        for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
+          leds.setPixelColor(i, 0,255,0);
+        for (int i=0; i<RGB_LEDS_CIRCLE3; i++)
+          leds.setPixelColor(i+RGB_LEDS_CIRCLE4, 255,0,0);    
+        for (int i=0; i<RGB_LEDS_CIRCLE2; i++)
+          leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, 0,0,255);    
+        for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
+          leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, 255,0,255);    
+        leds.show();   
+        break;   
+  
+      case RUNNING:
+        // Set outer to zero
+        for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
+          leds.setPixelColor(i, 0,0,0);
+        leds.show();         
+        break;          
+     }     
+  }
+
+   state = newState;
+
 }
 
-void handleLeds() {
-
-  // Flash laser when pumps are running
-  switch (LED_state) {
-
-    case LEDSTATE_STANDBY:
-      break;
-
-    case LEDSTATE_RUNNING:
-      if (millis() % 300 < 100)
-        digitalWrite(LASER_PIN, HIGH);
-      else
-        digitalWrite(LASER_PIN, LOW);
-          
-      // If pumps are on, then update progress bar
-      int progbar_current_led = RGB_LEDS_CIRCLE4 -
-        (int)((long)(RGB_LEDS_CIRCLE4 * (long)progbar_current) / (long)progbar_max);
-      if (progbar_current_led != progbar_previous_led) {
-        progbar_previous_led = progbar_current_led;
-        // Is end reached?
-        if (progbar_current_led == RGB_LEDS_CIRCLE4) {
-          // Yes, show standby
-          changeLED_state(LEDSTATE_STANDBY);
-        } else {
-          // No, update blue progress bar
-          for (int i = 0; i < RGB_LED_COUNT; i++) {
-            if (i <  progbar_current_led) {
-              leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
-            } else {
-              leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
+void handleStates() {
+  if (board_config == BOARD_CONFIG_MOTOR) {
+    // States for Motor board config  
+    switch (state) {
+  
+      case STANDBY:
+        break;
+  
+      case RUNNING:
+        // Flash laser when pumps are running
+        if (millis() % 300 < 100)
+          digitalWrite(LASER_PIN, HIGH);
+        else
+          digitalWrite(LASER_PIN, LOW);
+        break;
+    } 
+    
+  } else {
+    // States for LED board config    
+    switch (state) {
+    
+      case STANDBY:
+        break;
+  
+      case RUNNING:
+        // If pumps are on, then update progress bar
+        int progbar_current_led = RGB_LEDS_CIRCLE4 -
+          (int)((long)(RGB_LEDS_CIRCLE4 * (long)progbar_current) / (long)progbar_max);
+        if (progbar_current_led != progbar_previous_led) {
+          progbar_previous_led = progbar_current_led;
+          // Is end reached?
+//          if (progbar_current_led == RGB_LEDS_CIRCLE4) {
+            // Yes, show standby
+//            changeState(STANDBY);
+//          } else {
+            // No, update blue progress bar
+            for (int i = 0; i < RGB_LED_COUNT; i++) {
+              if (i <  progbar_current_led) {
+                leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
+              } else {
+                leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
+              }
             }
-          }
+//          }
+          leds.show();
         }
-        leds.show();
-      }
-      break;
+        break;
+    }
   }    
 }
 
@@ -378,5 +423,6 @@ void heartBeat() {
 void loop () {
   heartBeat();
   handleCom();
+//  handleStates();
 }
 
