@@ -17,6 +17,7 @@ serial port
 #define SDPOWER            -1
 #define SDSS               53
 #define LED_PIN            13
+#define LED_DELAY          10  // milliseconds between each LED animation update
 
 #define RGB_LED_PIN        5
 #define RGB_LED_COUNT      60
@@ -338,6 +339,7 @@ void changeState(int newState) {
     switch (newState) {
       case STANDBY:
         // Set outer circle green
+        /*
         for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
           leds.setPixelColor(i, 0,255,0);
         for (int i=0; i<RGB_LEDS_CIRCLE3; i++)
@@ -346,6 +348,7 @@ void changeState(int newState) {
           leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, 0,0,255);    
         for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
           leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, 255,0,255);    
+        */
         leds.show();   
         break;   
   
@@ -362,6 +365,10 @@ void changeState(int newState) {
 
 }
 
+long lastLEDevent = 0;
+int ledr = 250;
+int ledg = 0;
+int ledb = 100;
 void handleStates() {
   if (board_config == BOARD_CONFIG_MOTOR) {
     // States for Motor board config  
@@ -384,6 +391,22 @@ void handleStates() {
     switch (state) {
     
       case STANDBY:
+        if (millis() - lastLEDevent > LED_DELAY) {
+          lastLEDevent = millis();
+          ledr = (ledr + 50) % 255;
+          ledg = (ledg + 1) % 255;
+          ledb += (ledb + 10) % 255;          
+          for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
+            leds.setPixelColor(i, ledr,ledg,ledb);
+          for (int i=0; i<RGB_LEDS_CIRCLE3; i++)
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4, (ledr+20)%255,ledg,(ledb+20)%255);    
+          for (int i=0; i<RGB_LEDS_CIRCLE2; i++)
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, (ledr+40)%255,ledg,(ledb+40)%255);    
+          for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, (ledr+60)%255,ledg,(ledb+60)%255);              
+          leds.show();   
+        }
+            
         break;
   
       case RUNNING:
@@ -392,12 +415,6 @@ void handleStates() {
           (int)((long)(RGB_LEDS_CIRCLE4 * (long)progbar_current) / (long)progbar_max);
         if (progbar_current_led != progbar_previous_led) {
           progbar_previous_led = progbar_current_led;
-          // Is end reached?
-//          if (progbar_current_led == RGB_LEDS_CIRCLE4) {
-            // Yes, show standby
-//            changeState(STANDBY);
-//          } else {
-            // No, update blue progress bar
             for (int i = 0; i < RGB_LED_COUNT; i++) {
               if (i <  progbar_current_led) {
                 leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
@@ -405,7 +422,6 @@ void handleStates() {
                 leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
               }
             }
-//          }
           leds.show();
         }
         break;
