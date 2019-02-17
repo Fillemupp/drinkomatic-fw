@@ -19,6 +19,8 @@ serial port
 #define LED_PIN            13
 #define LED_DELAY          10  // milliseconds between each LED animation update
 
+#define ALCO_PIN           A0
+
 #define RGB_LED_PIN        5
 #define RGB_LED_COUNT      60
 #define RGB_LEDS_CIRCLE4   24
@@ -105,29 +107,28 @@ void setup() {
   pinMode(BOARD_CONFIG_PIN, INPUT_PULLUP);
   if (digitalRead(BOARD_CONFIG_PIN) == HIGH) {
     board_config = BOARD_CONFIG_MOTOR;
-  } else {
-    board_config = BOARD_CONFIG_LED;
-  }
 
-  for (int i=0; i<MOTOR_COUNT;i++) {
-    motor_status[i].steps = 0;
-    motor_status[i].speed = 0;
+    // Set all motor pins    
+    for (int i=0; i<MOTOR_COUNT;i++) {
+      motor_status[i].steps = 0;
+      motor_status[i].speed = 0;
+  
+      pinMode(motor_status[i].pin_step , OUTPUT);
+      pinMode(motor_status[i].pin_dir , OUTPUT);
+      pinMode(motor_status[i].pin_enable , OUTPUT);
+  
+      digitalWrite(motor_status[i].pin_step , LOW);
+      digitalWrite(motor_status[i].pin_dir , LOW);
+      digitalWrite(motor_status[i].pin_enable , HIGH);
+    }
 
-    pinMode(motor_status[i].pin_step , OUTPUT);
-    pinMode(motor_status[i].pin_dir , OUTPUT);
-    pinMode(motor_status[i].pin_enable , OUTPUT);
-
-    digitalWrite(motor_status[i].pin_step , LOW);
-    digitalWrite(motor_status[i].pin_dir , LOW);
-    digitalWrite(motor_status[i].pin_enable , HIGH);
-  }
-
-  // Update Laser if this is the motor board
-  if (board_config == BOARD_CONFIG_MOTOR) {
     // Set pin for LASER
     pinMode(LASER_PIN, OUTPUT);
     digitalWrite(LASER_PIN, LOW);
+    
   } else {
+    board_config = BOARD_CONFIG_LED;
+
     // Update LEDs if this is the LED board
     pinMode(LED_PIN  , OUTPUT);
     leds.begin();
@@ -154,6 +155,18 @@ void handleCommand(char* command) {
   Serial.print("# Command \"");
   Serial.print(command);
   Serial.println("\"");
+
+  // Check for alko sensor command
+  if (command[0] == 'A') {
+    if (board_config == BOARD_CONFIG_LED) {
+      int alcoraw = analogRead(ALCO_PIN);
+      Serial.println("# Reading alcohol sensor");
+      Serial.print("A:");
+      Serial.println(alcoraw);
+    } else {
+      Serial.print("# No alcohol sensor on this board");      
+    }
+  }
 
   // Check for motor command
   if (command[0] == 'M') {
@@ -207,18 +220,20 @@ void handleCommand(char* command) {
             if (state != RUNNING)
               changeState(RUNNING);
 
-            // Set motor direction
-            if (motor_status[motor].speed > 0) {
-              digitalWrite(motor_status[motor].pin_dir , LOW);
-            } else {
-              digitalWrite(motor_status[motor].pin_dir , HIGH);
-            }
-
-            // Enable motor driver if steps are available
-            if (motor_status[motor].steps > 0) {
-               digitalWrite(motor_status[motor].pin_enable , LOW);
-             } else {
-              digitalWrite(motor_status[motor].pin_enable , HIGH);
+            if (board_config == BOARD_CONFIG_MOTOR) {
+              // Set motor direction
+              if (motor_status[motor].speed > 0) {
+                digitalWrite(motor_status[motor].pin_dir , LOW);
+              } else {
+                digitalWrite(motor_status[motor].pin_dir , HIGH);
+              }
+  
+              // Enable motor driver if steps are available
+              if (motor_status[motor].steps > 0) {
+                 digitalWrite(motor_status[motor].pin_enable , LOW);
+               } else {
+                digitalWrite(motor_status[motor].pin_enable , HIGH);
+              }
             }
 
           }
@@ -235,13 +250,15 @@ void handleCommand(char* command) {
 
     Serial.println("# Stopping all motors");
 
-    for (int i=0; i<MOTOR_COUNT;i++) {
-      motor_status[i].steps = 0;
-      motor_status[i].speed = 0;
-
-      digitalWrite(motor_status[i].pin_step , LOW);
-      digitalWrite(motor_status[i].pin_dir , LOW);
-      digitalWrite(motor_status[i].pin_enable , HIGH);
+    if (board_config == BOARD_CONFIG_MOTOR) {
+      for (int i=0; i<MOTOR_COUNT;i++) {
+        motor_status[i].steps = 0;
+        motor_status[i].speed = 0;
+  
+        digitalWrite(motor_status[i].pin_step , LOW);
+        digitalWrite(motor_status[i].pin_dir , LOW);
+        digitalWrite(motor_status[i].pin_enable , HIGH);
+      }
     }
 
     Serial.println("OK");
@@ -272,9 +289,12 @@ void handleMotors() {
   if (interruptState == 0) {
     // Set step signal high for all activated motors
     interruptState = 1; // Change to other state for next interrupt
-    for (int motor = 0; motor<MOTOR_COUNT; motor++) {
-      if (motor_status[motor].steps > 0) {
-        digitalWrite(motor_status[motor].pin_step , HIGH);
+    
+    if (board_config == BOARD_CONFIG_MOTOR) {
+      for (int motor = 0; motor<MOTOR_COUNT; motor++) {
+        if (motor_status[motor].steps > 0) {
+          digitalWrite(motor_status[motor].pin_step , HIGH);
+        }
       }
     }
   }   else {
@@ -283,7 +303,9 @@ void handleMotors() {
     progbar_current = 0;
     for (int motor = 0; motor<MOTOR_COUNT; motor++) {
       if (motor_status[motor].steps > 0) {
-        digitalWrite(motor_status[motor].pin_step , LOW);
+        if (board_config == BOARD_CONFIG_MOTOR) {  
+          digitalWrite(motor_status[motor].pin_step , LOW);
+        }
         motor_status[motor].steps--;
 
         // Update current progress bar position to the highest steps left
@@ -293,10 +315,12 @@ void handleMotors() {
 
         // Disable motor driver when zero reached
         if (motor_status[motor].steps == 0) {
-           digitalWrite(motor_status[motor].pin_enable , HIGH);
-           long motorStopTime = millis();
-           Serial.print("# Time in millis: ");
-           Serial.println(motorStopTime-motorStartTime);
+          if (board_config == BOARD_CONFIG_MOTOR) {  
+            digitalWrite(motor_status[motor].pin_enable , HIGH);
+          }
+          long motorStopTime = millis();
+          Serial.print("# Time in millis: ");
+          Serial.println(motorStopTime-motorStartTime);
         }
       }
     }
@@ -353,8 +377,8 @@ void changeState(int newState) {
         break;   
   
       case RUNNING:
-        // Set outer to zero
-        for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
+        // Set all to zero
+        for (int i=0; i<RGB_LED_COUNT; i++)
           leds.setPixelColor(i, 0,0,0);
         leds.show();         
         break;          
@@ -393,35 +417,43 @@ void handleStates() {
       case STANDBY:
         if (millis() - lastLEDevent > LED_DELAY) {
           lastLEDevent = millis();
-          ledr = (ledr + 50) % 255;
+          ledr = (ledr + 5) % 255;
           ledg = (ledg + 1) % 255;
-          ledb += (ledb + 10) % 255;          
+          ledb = (ledb + 2) % 255;          
           for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
-            leds.setPixelColor(i, ledr,ledg,ledb);
+            leds.setPixelColor(i, (ledr)%255,(ledg)%255,(ledb)%255);
           for (int i=0; i<RGB_LEDS_CIRCLE3; i++)
-            leds.setPixelColor(i+RGB_LEDS_CIRCLE4, (ledr+20)%255,ledg,(ledb+20)%255);    
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4, (ledr+20)%255,(ledg)%255,(ledb+20)%255);    
           for (int i=0; i<RGB_LEDS_CIRCLE2; i++)
-            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, (ledr+40)%255,ledg,(ledb+40)%255);    
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, (ledr+40)%255,(ledg)%255,(ledb+40)%255);    
           for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
-            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, (ledr+60)%255,ledg,(ledb+60)%255);              
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, (ledr+60)%255,(ledg)%255,(ledb+60)%255);                          
           leds.show();   
         }
             
         break;
   
       case RUNNING:
-        // If pumps are on, then update progress bar
-        int progbar_current_led = RGB_LEDS_CIRCLE4 -
-          (int)((long)(RGB_LEDS_CIRCLE4 * (long)progbar_current) / (long)progbar_max);
-        if (progbar_current_led != progbar_previous_led) {
-          progbar_previous_led = progbar_current_led;
-            for (int i = 0; i < RGB_LED_COUNT; i++) {
+        if (millis() - lastLEDevent > LED_DELAY) {
+          lastLEDevent = millis();
+          ledr = (ledr + 5) % 255;
+          ledg = (ledg + 1) % 255;
+          ledb = (ledb + 2) % 255;    
+          // If pumps are on, then update progress bar
+          int progbar_current_led = RGB_LEDS_CIRCLE4 -
+            (int)((long)(RGB_LEDS_CIRCLE4 * (long)progbar_current) / (long)progbar_max);
+          if (progbar_current_led != progbar_previous_led) {
+            progbar_previous_led = progbar_current_led;
+            for (int i = 0; i < RGB_LEDS_CIRCLE4; i++) {
               if (i <  progbar_current_led) {
                 leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
               } else {
                 leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
               }
             }
+          }
+          for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, (ledr)%255,(ledg)%255,(ledb)%255);                                    
           leds.show();
         }
         break;
