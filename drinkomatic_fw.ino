@@ -44,6 +44,14 @@ serial port
 
 #define MOTOR_COUNT 24
 
+// Includes for RFID
+#include <SPI.h>
+#include <RFID.h>
+#define SDA_DIO 9 // RFID define the DIO used for the SDA (SS)
+#define RESET_DIO 8 // RFID define RST (reset) pin
+#define HANDLE_RFID_DELAY 200 // Time in ms between check for RFID cards
+RFID RC522(SDA_DIO, RESET_DIO);  // Create an instance of the RFID library 
+
 #include <TimerOne.h>
 
 #include <Adafruit_NeoPixel.h>
@@ -137,6 +145,10 @@ void setup() {
       leds.setPixelColor(i, 0);
     }
     leds.show();
+    
+    // Enable RFID reader
+    SPI.begin();
+    RC522.init();
   }
   
   changeState(STANDBY);
@@ -340,7 +352,6 @@ void handleMotors() {
   }
 
   handleStates();
-
 }
 
 void changeState(int newState) {
@@ -468,9 +479,28 @@ void heartBeat() {
     digitalWrite(LED_PIN, LOW);
 }
 
+long handleRFIDLast = 0;
+void handleRFID() {
+  if (millis() > handleRFIDLast + HANDLE_RFID_DELAY ) {
+    handleRFIDLast = millis();
+    // Has a card been detected? 
+    if (RC522.isCard()) {
+      RC522.readCardSerial();
+      Serial.println("Card detected:");
+      for(int i=0;i<5;i++) {
+        Serial.print(RC522.serNum[i],HEX);
+      }
+      Serial.println();
+      Serial.println();
+    }
+  }
+}
+
 void loop () {
   heartBeat();
   handleCom();
-//  handleStates();
+  if (board_config == BOARD_CONFIG_LED) {
+    handleRFID();
+  }  
 }
 
