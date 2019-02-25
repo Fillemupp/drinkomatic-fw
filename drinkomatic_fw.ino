@@ -49,7 +49,7 @@ serial port
 #include <RFID.h>
 #define SDA_DIO 9 // RFID define the DIO used for the SDA (SS)
 #define RESET_DIO 8 // RFID define RST (reset) pin
-#define HANDLE_RFID_DELAY 200 // Time in ms between check for RFID cards
+#define RFID_DELAY 200 // Time in ms between check for RFID cards
 RFID RC522(SDA_DIO, RESET_DIO);  // Create an instance of the RFID library 
 
 #include <TimerOne.h>
@@ -481,7 +481,7 @@ void heartBeat() {
 
 long handleRFIDLast = 0;
 void handleRFID() {
-  if (millis() > handleRFIDLast + HANDLE_RFID_DELAY ) {
+  if (millis() > handleRFIDLast + RFID_DELAY ) {
     handleRFIDLast = millis();
     // Has a card been detected? 
     if (RC522.isCard()) {
