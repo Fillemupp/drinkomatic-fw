@@ -473,10 +473,19 @@ void handleStates() {
 }
 
 void heartBeat() {  
-  if (millis() % 800 < 100)
-    digitalWrite(LED_PIN, HIGH);
-  else
-    digitalWrite(LED_PIN, LOW);
+  if (board_config == BOARD_CONFIG_LED) {
+    // Flash heartbeat slow on LED board
+    if (millis() % 800 < 100)
+      digitalWrite(LED_PIN, HIGH);
+    else
+      digitalWrite(LED_PIN, LOW);
+  } else {
+    // Flash heartbeat fast on MOTOR board
+    if (millis() % 400 < 100)
+      digitalWrite(LED_PIN, HIGH);
+    else
+      digitalWrite(LED_PIN, LOW);
+  }
 }
 
 long handleRFIDLast = 0;
