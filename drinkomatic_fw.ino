@@ -59,7 +59,9 @@ Adafruit_NeoPixel leds = Adafruit_NeoPixel(RGB_LED_COUNT, RGB_LED_PIN, NEO_GRB +
 long progbar_max = 0;
 long progbar_current = 0;
 int progbar_previous_led = 0;
+
 int state = 0;
+int changedState = 1;
 #define STANDBY 0
 #define RUNNING 1
 
@@ -110,6 +112,7 @@ void setup() {
   Serial.begin(115200);
   Serial.println("#");
   Serial.println("# Startup pumpfirmware v0.1");
+  Serial.flush();
 
   // Check board config pin, if there is a cable to GND then this is an LED board
   pinMode(BOARD_CONFIG_PIN, INPUT_PULLUP);
@@ -167,6 +170,7 @@ void handleCommand(char* command) {
   Serial.print("# Command \"");
   Serial.print(command);
   Serial.println("\"");
+  Serial.flush();
 
   // Check for alko sensor command
   if (command[0] == 'A') {
@@ -175,9 +179,11 @@ void handleCommand(char* command) {
       Serial.println("# Reading alcohol sensor");
       Serial.print("A:");
       Serial.println(alcoraw);
+      Serial.flush();
     } else {
       Serial.println("# No alcohol sensor on this board");
       Serial.println("N");
+      Serial.flush();
     }
   }
 
@@ -214,6 +220,8 @@ void handleCommand(char* command) {
           Serial.println();
 
           Serial.println("OK");
+          Serial.flush();
+
           motorStartTime = millis();
 
           if (motor < MOTOR_COUNT) {
@@ -275,6 +283,7 @@ void handleCommand(char* command) {
     }
 
     Serial.println("OK");
+    Serial.flush();
   }
 
 }
@@ -331,9 +340,6 @@ void handleMotors() {
           if (board_config == BOARD_CONFIG_MOTOR) {
             digitalWrite(motor_status[motor].pin_enable , HIGH);
           }
-          long motorStopTime = millis();
-          Serial.print("# Time in millis: ");
-          Serial.println(motorStopTime-motorStartTime);
         }
       }
     }
@@ -352,53 +358,11 @@ void handleMotors() {
     Timer1.setPeriod(stepSpeed);         // Set timer interrupt with motor speed
   }
 
-  handleStates();
 }
 
 void changeState(int newState) {
-
-  if (board_config == BOARD_CONFIG_MOTOR) {
-    // States for Motor board config
-    switch (newState) {
-      case STANDBY:
-        // Turn on laser
-        digitalWrite(LASER_PIN, HIGH);
-        break;
-
-      case RUNNING:
-        break;
-     }
-
-  } else {
-    // States for LED board config
-
-    switch (newState) {
-      case STANDBY:
-        // Set outer circle green
-        /*
-        for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
-          leds.setPixelColor(i, 0,255,0);
-        for (int i=0; i<RGB_LEDS_CIRCLE3; i++)
-          leds.setPixelColor(i+RGB_LEDS_CIRCLE4, 255,0,0);
-        for (int i=0; i<RGB_LEDS_CIRCLE2; i++)
-          leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, 0,0,255);
-        for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
-          leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, 255,0,255);
-        */
-        leds.show();
-        break;
-
-      case RUNNING:
-        // Set all to zero
-        for (int i=0; i<RGB_LED_COUNT; i++)
-          leds.setPixelColor(i, 0,0,0);
-        leds.show();
-        break;
-     }
-  }
-
    state = newState;
-
+   changedState = 1;
 }
 
 long lastLEDevent = 0;
@@ -411,9 +375,19 @@ void handleStates() {
     switch (state) {
 
       case STANDBY:
+        // If just changed to this state, initialize
+        if (changedState) {
+          // Turn on laser
+          digitalWrite(LASER_PIN, HIGH);
+          changedState = 0;
+        }
         break;
 
       case RUNNING:
+        // If just changed to this state, initialize
+        if (changedState) {
+          changedState = 0;
+        }
         // Flash laser when pumps are running
         if (millis() % 300 < 100)
           digitalWrite(LASER_PIN, HIGH);
@@ -427,6 +401,24 @@ void handleStates() {
     switch (state) {
 
       case STANDBY:
+        // If just changed to this state, initialize
+        if (changedState) {
+          // Set outer circle green
+          /*
+          for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
+            leds.setPixelColor(i, 0,255,0);
+          for (int i=0; i<RGB_LEDS_CIRCLE3; i++)
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4, 255,0,0);
+          for (int i=0; i<RGB_LEDS_CIRCLE2; i++)
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, 0,0,255);
+          for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
+            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, 255,0,255);
+          */
+          leds.show();
+          state = STANDBY;
+          changedState = 0;
+        }
+
         if (millis() - lastLEDevent > LED_DELAY) {
           lastLEDevent = millis();
           ledr = (ledr + 5) % 255;
@@ -442,10 +434,17 @@ void handleStates() {
             leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, (ledr+60)%255,(ledg)%255,(ledb+60)%255);
           leds.show();
         }
-
         break;
 
       case RUNNING:
+        // If just changed to this state, initialize
+        if (changedState) {
+          for (int i=0; i<RGB_LED_COUNT; i++)
+            leds.setPixelColor(i, 0,0,0);
+          leds.show();
+          changedState = 0;
+        }
+
         if (millis() - lastLEDevent > LED_DELAY) {
           lastLEDevent = millis();
           ledr = (ledr + 5) % 255;
@@ -473,7 +472,7 @@ void handleStates() {
   }
 }
 
-void heartBeat() {
+void handleHeartBeat() {
   if (board_config == BOARD_CONFIG_LED) {
     // Flash heartbeat slow on LED board
     if (millis() % 800 < 100)
@@ -503,14 +502,16 @@ void handleRFID() {
       }
       Serial.println();
       Serial.println();
+      Serial.flush();
     }
   }
 }
 
 void loop () {
-  heartBeat();
+  handleHeartBeat();
   handleCom();
   if (board_config == BOARD_CONFIG_LED) {
     handleRFID();
   }
+  handleStates();
 }
