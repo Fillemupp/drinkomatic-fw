@@ -176,7 +176,8 @@ void handleCommand(char* command) {
       Serial.print("A:");
       Serial.println(alcoraw);
     } else {
-      Serial.print("# No alcohol sensor on this board");
+      Serial.println("# No alcohol sensor on this board");
+      Serial.println("N");
     }
   }
 
@@ -495,7 +496,8 @@ void handleRFID() {
     // Has a card been detected?
     if (RC522.isCard()) {
       RC522.readCardSerial();
-      Serial.println("Card detected:");
+      Serial.println("# Card detected");
+      Serial.print("R:");
       for(int i=0;i<5;i++) {
         Serial.print(RC522.serNum[i],HEX);
       }
