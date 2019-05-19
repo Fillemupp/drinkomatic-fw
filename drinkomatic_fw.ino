@@ -9,6 +9,9 @@ serial port
 
 */
 
+#define VERSION_LED   "L0.2"
+#define VERSION_MOTOR "M0.2"
+
 #define MOTORSPEED 100
 
 #define BOARD_CONFIG_PIN   4
@@ -20,6 +23,9 @@ serial port
 #define LED_DELAY          10  // milliseconds between each LED animation update
 
 #define ALCO_PIN           A0
+#define ALCO_DELAY         50   // Time in ms between check for new alco values
+#define ALCO_FILTER_P      0.20 // Factor P for filter on new values
+#define ALCO_REPORT_THRESH 2    // Difference requried to report
 
 #define RGB_LED_PIN        5
 #define RGB_LED_COUNT      60
@@ -111,13 +117,15 @@ motor_status_t motor_status[MOTOR_COUNT] = {
 void setup() {
   Serial.begin(115200);
   Serial.println("#");
-  Serial.println("# Startup pumpfirmware v0.1");
+  Serial.println("# Startup pumpfirmware");
   Serial.flush();
 
   // Check board config pin, if there is a cable to GND then this is an LED board
   pinMode(BOARD_CONFIG_PIN, INPUT_PULLUP);
   if (digitalRead(BOARD_CONFIG_PIN) == HIGH) {
     board_config = BOARD_CONFIG_MOTOR;
+    Serial.print("V:");
+    Serial.println(VERSION_MOTOR);
 
     // Set all motor pins
     for (int i=0; i<MOTOR_COUNT;i++) {
@@ -139,6 +147,8 @@ void setup() {
 
   } else {
     board_config = BOARD_CONFIG_LED;
+    Serial.print("V:");
+    Serial.println(VERSION_LED);
 
     // Update LEDs if this is the LED board
     pinMode(LED_PIN  , OUTPUT);
@@ -219,7 +229,7 @@ void handleCommand(char* command) {
           Serial.print(speed);
           Serial.println();
 
-          Serial.println("OK");
+          Serial.println("M:OK");
           Serial.flush();
 
           motorStartTime = millis();
@@ -282,7 +292,7 @@ void handleCommand(char* command) {
       }
     }
 
-    Serial.println("OK");
+    Serial.println("S:OK");
     Serial.flush();
   }
 
@@ -495,13 +505,34 @@ void handleRFID() {
     // Has a card been detected?
     if (RC522.isCard()) {
       RC522.readCardSerial();
-      Serial.println("# Card detected");
       Serial.print("R:");
       for(int i=0;i<5;i++) {
         Serial.print(RC522.serNum[i],HEX);
       }
       Serial.println();
-      Serial.println();
+      Serial.flush();
+    }
+  }
+}
+
+long handleAlcoLast = 0;
+float alcov = 0;
+float alcovprev = 0;
+void handleAlcoSensor() {
+  if (millis() > handleAlcoLast + ALCO_DELAY ) {
+    handleAlcoLast = millis();
+    // Read alco sensor
+    int alcoraw = analogRead(ALCO_PIN);
+    // Approach towards the current value slowly
+    alcov = alcov + (float(alcoraw) - alcov) * ALCO_FILTER_P;
+    // Report if different from before
+    if (abs(alcov - alcovprev) > ALCO_REPORT_THRESH) {
+      alcovprev = alcov;
+      Serial.print("A:");
+      Serial.print(int(alcov));
+      Serial.print(":");
+      Serial.print(alcoraw);
+      Serial.println();      
       Serial.flush();
     }
   }
@@ -512,6 +543,7 @@ void loop () {
   handleCom();
   if (board_config == BOARD_CONFIG_LED) {
     handleRFID();
+    handleAlcoSensor();
   }
   handleStates();
 }
