@@ -499,11 +499,13 @@ void handleHeartBeat() {
 }
 
 long handleRFIDLast = 0;
+bool handleRFIDisCardPrev = false;
 void handleRFID() {
   if (millis() > handleRFIDLast + RFID_DELAY ) {
     handleRFIDLast = millis();
-    // Has a card been detected?
-    if (RC522.isCard()) {
+    bool isCard = RC522.isCard();
+    if (isCard && !handleRFIDisCardPrev) {
+      handleRFIDisCardPrev = true;
       RC522.readCardSerial();
       Serial.print("R:");
       for(int i=0;i<5;i++) {
@@ -511,7 +513,10 @@ void handleRFID() {
       }
       Serial.println();
       Serial.flush();
-    }
+    } else if (!isCard && handleRFIDisCardPrev) {
+      handleRFIDisCardPrev = false;
+      Serial.println("R:NONE");
+      Serial.flush();
   }
 }
 
