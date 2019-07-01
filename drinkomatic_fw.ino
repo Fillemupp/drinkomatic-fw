@@ -55,7 +55,7 @@ serial port
 #include <RFID.h>
 #define SDA_DIO 9 // RFID define the DIO used for the SDA (SS)
 #define RESET_DIO 8 // RFID define RST (reset) pin
-#define RFID_DELAY 200 // Time in ms between check for RFID cards
+#define RFID_DELAY 100 // Time in ms between check for RFID cards
 RFID RC522(SDA_DIO, RESET_DIO);  // Create an instance of the RFID library
 
 #include <TimerOne.h>
@@ -499,24 +499,31 @@ void handleHeartBeat() {
 }
 
 long handleRFIDLast = 0;
-bool handleRFIDisCardPrev = false;
+int handleRFIDisCardCount = 0; // Use counter to handle incorrect isCard flip to zero while card is present
 void handleRFID() {
   if (millis() > handleRFIDLast + RFID_DELAY ) {
     handleRFIDLast = millis();
     bool isCard = RC522.isCard();
-    if (isCard && !handleRFIDisCardPrev) {
-      handleRFIDisCardPrev = true;
-      RC522.readCardSerial();
-      Serial.print("R:");
-      for(int i=0;i<5;i++) {
-        Serial.print(RC522.serNum[i],HEX);
+    if (isCard) {
+      if (handleRFIDisCardCount == 0) {
+        RC522.readCardSerial();
+        Serial.print("R:");
+        for(int i=0;i<5;i++) {
+          Serial.print(RC522.serNum[i],HEX);
+        }
+        Serial.println();
+        Serial.flush();
       }
-      Serial.println();
-      Serial.flush();
-    } else if (!isCard && handleRFIDisCardPrev) {
-      handleRFIDisCardPrev = false;
-      Serial.println("R:NONE");
-      Serial.flush();
+      handleRFIDisCardCount = 2;
+    } else {
+      if (handleRFIDisCardCount == 2) {
+        handleRFIDisCardCount = 1;
+      } else if (handleRFIDisCardCount == 1) {
+        handleRFIDisCardCount = 0;
+        Serial.println("R:NONE");
+        Serial.flush();
+      }
+    }
   }
 }
 
