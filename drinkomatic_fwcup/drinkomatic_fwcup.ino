@@ -54,6 +54,7 @@ void setup() {
   Serial.println(VERSION);
 
   leds.begin();
+  leds.setBrightness(80); // Set lower brightness to reduce heat
   // Clear LEDs
   for (int i=0; i<RGB_LED_COUNT; i++) {
     leds.setPixelColor(i, 0);
@@ -149,27 +150,34 @@ void changeState(int newState) {
    }
 }
 
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos) {
+  if(WheelPos < 85) {
+    return leds.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } 
+  else if(WheelPos < 170) {
+    WheelPos -= 85;
+    return leds.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  } 
+  else {
+    WheelPos -= 170;
+    return leds.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+}
+
+
 long lastLEDevent = 0;
 int ledr = 250;
 int ledg = 0;
 int ledb = 100;
+int ledcycle = 0;
 void handleStates() {
     switch (state) {
 
       case STANDBY:
         // If just changed to this state, initialize
         if (changedState) {
-          // Set outer circle green
-          /*
-          for (int i=0; i<RGB_LEDS_CIRCLE4; i++)
-            leds.setPixelColor(i, 0,255,0);
-          for (int i=0; i<RGB_LEDS_CIRCLE3; i++)
-            leds.setPixelColor(i+RGB_LEDS_CIRCLE4, 255,0,0);
-          for (int i=0; i<RGB_LEDS_CIRCLE2; i++)
-            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3, 0,0,255);
-          for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
-            leds.setPixelColor(i+RGB_LEDS_CIRCLE4+RGB_LEDS_CIRCLE3+RGB_LEDS_CIRCLE2, 255,0,255);
-          */
           leds.show();
           state = STANDBY;
           changedState = 0;
@@ -177,11 +185,13 @@ void handleStates() {
 
         if (millis() - lastLEDevent > LED_DELAY) {
           lastLEDevent = millis();
-          ledr = (ledr + 5) % 255;
-          ledg = (ledg + 1) % 255;
-          ledb = (ledb + 2) % 255;
+
+          // Rotate rainbow
+          ledcycle = (ledcycle + 2) % 255;          
+          // Show raindbox on outer circle
           for (int i=0; i<RGB_LEDS_CIRCLE1; i++)
-            leds.setPixelColor(i, (ledr+i)%255,(ledg+i)%255,(ledb+i)%255);
+            leds.setPixelColor(i, Wheel(((255/RGB_LEDS_CIRCLE1)*i+ledcycle) & 255));
+
           // Show green small circle when RFID card is present
           if (handleRFIDisCardCount > 0) {
             for (int i=0; i<RGB_LEDS_CIRCLE2; i++)
