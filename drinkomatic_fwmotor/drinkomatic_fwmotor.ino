@@ -344,8 +344,11 @@ void handleStates() {
       
     case FINISHED:
       changedState = 0;
-      Serial.println("P:100");
-      Serial.flush();
+      if (progress_prev != 100) {
+        progress_prev = 100;
+        Serial.println("P:100");
+        Serial.flush();
+      }
       changeState(STANDBY);
       break;
 
