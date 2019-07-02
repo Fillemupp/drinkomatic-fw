@@ -85,36 +85,41 @@ void handleCommand(char* command) {
 
   // Check for alko sensor command
   if (command[0] == 'A') {
-    if (board_config == BOARD_CONFIG_LED) {
-      int alcoraw = analogRead(ALCO_PIN);
-      Serial.println("# Reading alcohol sensor");
-      Serial.print("A:");
-      Serial.println(alcoraw);
-      Serial.flush();
-    } else {
-      Serial.println("# No alcohol sensor on this board");
-      Serial.println("N");
-      Serial.flush();
-    }
+    int alcoraw = analogRead(ALCO_PIN);
+    Serial.println("# Reading alcohol sensor");
+    Serial.print("A:");
+    Serial.println(alcoraw);
+    Serial.flush();
   }
 
   // Check for progress command
   else if (command[0] == 'P') {
     Serial.print("# Progress update ");
     command++;
-    char* subcommand = strtok(command, "\n");
-    if (subcommand != 0) {
-      progress = atoi(subcommand);
-      Serial.print(progress);
-      if (progress == 0) {
-        changeState(STANDBY);
-      } else if (progress == 100) {
-        changeState(FINISHED);
-      } else {
-        changeState(RUNNING);
+    if (command[0] == ':') {
+      command++;
+      char* subcommand = strtok(command, "\n");
+      if (subcommand != 0) {
+        progress = atoi(subcommand);
+        Serial.print(progress);
+        if (progress == 0) {
+          changeState(STANDBY);
+        } else if (progress == 100) {
+          changeState(FINISHED);
+        } else {
+          changeState(RUNNING);
+        }
       }
+    } else {
+      Serial.print("BAD FORMAT");
     }
     Serial.println(); 
+    Serial.flush();
+  }
+
+  // Unknown command
+  else {
+    Serial.println("# Unknown command");
     Serial.flush();
   }
 }
