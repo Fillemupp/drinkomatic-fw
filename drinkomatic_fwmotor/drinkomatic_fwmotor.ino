@@ -201,7 +201,7 @@ void handleCommand(char* command) {
             // Update progress bar maximum
             if (steps > progbar_max) {
               progbar_max = steps;
-              progbar_current = 0;
+              progbar_current = progbar_max;
             }
 
             // Set new state
@@ -245,6 +245,12 @@ void handleCommand(char* command) {
     }
 
     Serial.println("S:OK");
+    Serial.flush();
+  }
+
+  // Unknown command
+  else {
+    Serial.println("# Unknown command");
     Serial.flush();
   }
 
