@@ -115,6 +115,13 @@ void handleCommand(char* command) {
     Serial.println(); 
     Serial.flush();
   }
+
+  // Unknown command
+  else {
+    Serial.println("# Unknown command");
+    Serial.flush();
+  }
+
 }
 
 void handleCom() {
