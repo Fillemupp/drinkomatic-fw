@@ -95,17 +95,22 @@ void handleCommand(char* command) {
   else if (command[0] == 'P') {
     Serial.print("# Progress update ");
     command++;
-    char* subcommand = strtok(command, "\n");
-    if (subcommand != 0) {
-      progress = atoi(subcommand);
-      Serial.print(progress);
-      if (progress == 0) {
-        changeState(STANDBY);
-      } else if (progress == 100) {
-        changeState(FINISHED);
-      } else {
-        changeState(RUNNING);
+    if (command[0] == ':') {
+      command++;
+      char* subcommand = strtok(command, "\n");
+      if (subcommand != 0) {
+        progress = atoi(subcommand);
+        Serial.print(progress);
+        if (progress == 0) {
+          changeState(STANDBY);
+        } else if (progress == 100) {
+          changeState(FINISHED);
+        } else {
+          changeState(RUNNING);
+        }
       }
+    } else {
+      Serial.print("BAD FORMAT");
     }
     Serial.println(); 
     Serial.flush();
@@ -186,7 +191,7 @@ void handleStates() {
         // If just changed to this state, initialize
         if (changedState) {
           for (int i=0; i<RGB_LED_COUNT; i++)
-            leds.setPixelColor(i, 0,0,0);
+            leds.setPixelColor(i, 0x000000);
           leds.show();
           changedState = 0;
         }
@@ -200,9 +205,9 @@ void handleStates() {
             progbar_previous_led = progbar_current_led;
             for (int i = 0; i < RGB_LEDS_CIRCLE1; i++) {
               if (i <  progbar_current_led) {
-                leds.setPixelColor(i, 0, 0, 255); // Set LEDs R G B
+                leds.setPixelColor(i, 0x0000FF); // Set LEDs R G B
               } else {
-                leds.setPixelColor(i, 0, 0, 0); // Set LEDs R G B
+                leds.setPixelColor(i, 0); // Set LEDs R G B to 0
               }
             }
           }
@@ -223,7 +228,6 @@ void handleStates() {
           changeState(STANDBY);
         }
        
-
         break;
     }
 }
