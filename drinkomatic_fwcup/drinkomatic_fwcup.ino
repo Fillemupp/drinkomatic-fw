@@ -54,7 +54,7 @@ void setup() {
   Serial.println(VERSION);
 
   leds.begin();
-  leds.setBrightness(80); // Set lower brightness to reduce heat
+  leds.setBrightness(128); // Set lower brightness to reduce heat
   // Clear LEDs
   for (int i=0; i<RGB_LED_COUNT; i++) {
     leds.setPixelColor(i, 0);
@@ -100,13 +100,15 @@ void handleCommand(char* command) {
       command++;
       char* subcommand = strtok(command, "\n");
       if (subcommand != 0) {
-        progress = atoi(subcommand);
-        Serial.print(progress);
-        if (progress == 0) {
-          changeState(STANDBY);
-        } else if (progress == 100) {
+        int cprogress = atoi(subcommand);
+        Serial.print(cprogress);
+        if (cprogress == 0) {
+          // Do nothing on progress read error
+        } else if (cprogress == 100) {
+          progress = cprogress;
           changeState(FINISHED);
         } else {
+          progress = cprogress;
           changeState(RUNNING);
         }
       }
@@ -218,14 +220,17 @@ void handleStates() {
           // If pumps are on, then update progress bar
           int progbar_current_led = RGB_LEDS_CIRCLE1 -
             (int)((long)(RGB_LEDS_CIRCLE1 * (long)(100-progress)) / (long)100);
-          if (progbar_current_led != progbar_previous_led) {
-            progbar_previous_led = progbar_current_led;
-            for (int i = 0; i < RGB_LEDS_CIRCLE1; i++) {
-              if (i <  progbar_current_led) {
-                leds.setPixelColor(i, 0x0000FF); // Set LEDs R G B
-              } else {
-                leds.setPixelColor(i, 0); // Set LEDs R G B to 0
-              }
+
+          // Rotate progress bar
+          ledcycle = (ledcycle + 1) % (RGB_LEDS_CIRCLE1 * 2);
+
+          // Show blue rotating progress bar with the length of current progress
+          for (int i = 0; i < RGB_LEDS_CIRCLE1; i++) {
+            if ( ((RGB_LEDS_CIRCLE1 + i - ledcycle/2) % RGB_LEDS_CIRCLE1 >= 0) && 
+                 ((RGB_LEDS_CIRCLE1 + i - ledcycle/2) % RGB_LEDS_CIRCLE1 <  progbar_current_led) )  {
+              leds.setPixelColor(i, 0x0000FF); // Set LEDs R G B
+            } else {
+              leds.setPixelColor(i, 0); // Set LEDs R G B to 0
             }
           }
           leds.show();
